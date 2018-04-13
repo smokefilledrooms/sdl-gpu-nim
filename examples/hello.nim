@@ -1,10 +1,13 @@
+# simple example that opens a window and waits for quit
 import sdl2
 import "../sdlgpu"
-# simple example that opens a window and waits for quit
 
-var screen = GPU_Init(640, 360, GPU_DEFAULT_INIT_FLAGS)
+let screen = sdlgpu.init(640, 360, GPU_DEFAULT_INIT_FLAGS)
 var running = true
 var e = defaultEvent
+
+type MyStruct* = object
+  foo*: bool
 
 while running:
   
@@ -12,8 +15,8 @@ while running:
     if e.kind == QuitEvent:
       running = false
   
-  GPU_Clear(screen)   # preferred syntax would be screen.clear() once I fix the bindings names
-  GPU_Flip(screen)
+  screen.clear()
+  screen.flip()
   delay(40)
 
-GPU_Quit()
+sdlgpu.quit()
