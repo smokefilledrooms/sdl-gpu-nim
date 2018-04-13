@@ -216,7 +216,7 @@ type GPU_Context* {.bycopy.} = object
   modelview_matrix*: GPU_MatrixStack
   data*: pointer
 
-  # Important GPU features which may not be supported depending on a device's extension support.  Can be bitwise OR'd together.
+# Important GPU features which may not be supported depending on a device's extension support.  Can be bitwise OR'd together.
 type GPU_FeatureEnum* = uint32
 const
   GPU_FEATURE_NON_POWER_OF_TWO* = 0x1.uint32
@@ -246,7 +246,6 @@ type GPU_WindowFlagEnum* = uint32
 # Initialization flags for changing default init parameters.  Can be bitwise OR'ed together.
 # Default (0) is to use late swap vsync and double buffering.
 type GPU_InitFlagEnum* = uint32
-
 const
   GPU_INIT_ENABLE_VSYNC* = 0x1.uint32
   GPU_INIT_DISABLE_VSYNC* = 0x2.uint32

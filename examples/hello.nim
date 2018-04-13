@@ -1,6 +1,6 @@
 # simple example that opens a window and waits for quit
 import sdl2
-import "../sdlgpu"
+import sdlgpu
 
 let screen = sdlgpu.init(640, 360, GPU_DEFAULT_INIT_FLAGS)
 var running = true
