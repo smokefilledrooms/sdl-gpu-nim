@@ -108,6 +108,21 @@ type
     major_version*: cint
     minor_version*: cint
 
+## \ingroup TargetControls
+## Comparison operations (for depth testing)
+## \see GPU_SetDepthFunction()
+## Values chosen for direct OpenGL compatibility.
+## 
+type
+  GPU_ComparisonEnum* {.size: sizeof(cint).} = enum
+    GPU_NEVER = 0x0200,
+    GPU_LESS = 0x0201,
+    GPU_EQUAL = 0x0202,
+    GPU_LEQUAL = 0x0203,
+    GPU_GREATER = 0x0204,
+    GPU_NOTEQUAL = 0x0205,
+    GPU_GEQUAL = 0x0206,
+    GPU_ALWAYS = 0x0207
 
 ## ! \ingroup ImageControls
 ##  Blend component functions
@@ -221,15 +236,11 @@ type
 
 
 ## ! \ingroup ImageControls
-##  Image object for containing pixel/texture data.
-##  A GPU_Image can be created with GPU_CreateImage(), GPU_LoadImage(), GPU_CopyImage(), or GPU_CopyImageFromSurface().
-##  Free the memory with GPU_FreeImage() when you're done.
-##  \see GPU_CreateImage()
-##  \see GPU_LoadImage()
-##  \see GPU_CopyImage()
-##  \see GPU_CopyImageFromSurface()
-##  \see GPU_Target
+##  A backend-neutral type that is intended to hold a backend-specific handle/pointer to a texture.
+##  \see GPU_CreateImageUsingTexture()
+##  \see GPU_GetTextureHandle()
 ## 
+type GPU_TextureHandle = pointer
 
 
 ## ! \ingroup TargetControls
@@ -246,6 +257,8 @@ type
     z*: cfloat
     angle*: cfloat
     zoom*: cfloat
+    z_near*: cfloat
+    z_far*: cfloat
 
 
 ## ! \ingroup ShaderInterface
@@ -269,12 +282,14 @@ const
 ## ! \ingroup Matrix
 ##  Matrix stack data structure for global vertex transforms.
 
-const GPU_MATRIX_STACK_MAX = 5
+const GPU_MATRIX_STACK_MAX* = 5
+
 type
 
   GPU_MatrixStack* {.bycopy.} = object
+    storage_size*: cuint
     size*: cuint
-    matrix*: array[GPU_MATRIX_STACK_MAX, array[16, cfloat]]
+    matrix*: ptr ptr float
 
 
 ## ! \ingroup ContextControls
@@ -337,16 +352,12 @@ const
 
 ## ! Combined feature flags
 
-let
+const
   GPU_FEATURE_ALL_BASE* = GPU_FEATURE_RENDER_TARGETS
-  GPU_FEATURE_ALL_BLEND_PRESETS* = (
-    GPU_FEATURE_BLEND_EQUATIONS or GPU_FEATURE_BLEND_FUNC_SEPARATE)
-  GPU_FEATURE_ALL_GL_FORMATS* = (
-    GPU_FEATURE_GL_BGR or GPU_FEATURE_GL_BGRA or GPU_FEATURE_GL_ABGR)
-  GPU_FEATURE_BASIC_SHADERS* = (
-    GPU_FEATURE_FRAGMENT_SHADER or GPU_FEATURE_VERTEX_SHADER)
-  GPU_FEATURE_ALL_SHADERS* = (GPU_FEATURE_FRAGMENT_SHADER or
-      GPU_FEATURE_VERTEX_SHADER or GPU_FEATURE_GEOMETRY_SHADER)
+  GPU_FEATURE_ALL_BLEND_PRESETS* = (GPU_FEATURE_BLEND_EQUATIONS or GPU_FEATURE_BLEND_FUNC_SEPARATE)
+  GPU_FEATURE_ALL_GL_FORMATS* = (GPU_FEATURE_GL_BGR or GPU_FEATURE_GL_BGRA or GPU_FEATURE_GL_ABGR)
+  GPU_FEATURE_BASIC_SHADERS* = (GPU_FEATURE_FRAGMENT_SHADER or GPU_FEATURE_VERTEX_SHADER)
+  GPU_FEATURE_ALL_SHADERS* = (GPU_FEATURE_FRAGMENT_SHADER or GPU_FEATURE_VERTEX_SHADER or GPU_FEATURE_GEOMETRY_SHADER)
 
 type
   GPU_WindowFlagEnum* = uint32
@@ -363,18 +374,12 @@ type
 
 const
   GPU_INIT_ENABLE_VSYNC* = 0x1.uint32
-
   GPU_INIT_DISABLE_VSYNC* = 0x2.uint32
-
   GPU_INIT_DISABLE_DOUBLE_BUFFER* = 0x4.uint32
-
   GPU_INIT_DISABLE_AUTO_VIRTUAL_RESOLUTION* = 0x8.uint32
-
   GPU_INIT_REQUEST_COMPATIBILITY_PROFILE* = 0x10.uint32
-  
-  GPU_INIT_USE_ROW_BY_ROW_TEXTURE_UPLOAD_FALLBACK = 0x20.uint32
-
-  GPU_INIT_USE_COPY_TEXTURE_UPLOAD_FALLBACK = 0x40.uint32
+  GPU_INIT_USE_ROW_BY_ROW_TEXTURE_UPLOAD_FALLBACK* = 0x20.uint32
+  GPU_INIT_USE_COPY_TEXTURE_UPLOAD_FALLBACK* = 0x40.uint32
 
 const
   GPU_DEFAULT_INIT_FLAGS* = 0
@@ -391,17 +396,11 @@ type
   GPU_BatchFlagEnum* = uint32
 const
   GPU_BATCH_XY* = 0x1.uint32
-
   GPU_BATCH_XYZ* = 0x2.uint32
-
   GPU_BATCH_ST* = 0x4.uint32
-
   GPU_BATCH_RGB* = 0x8.uint32
-
   GPU_BATCH_RGBA*  = 0x10.uint32
-
   GPU_BATCH_RGB8* = 0x20.uint32
-
   GPU_BATCH_RGBA8* = 0x40.uint32
 
 let
@@ -429,9 +428,7 @@ type
   GPU_FlipEnum* = uint32
 const
   GPU_FLIP_NONE* = 0x0.uint32
-
   GPU_FLIP_HORIZONTAL* = 0x1.uint32
-
   GPU_FLIP_VERTICAL* = 0x2.uint32
 
 ## ! \ingroup ShaderInterface
@@ -445,19 +442,12 @@ type
 
 const   
   GPU_TYPE_BYTE* = 0x1400.uint32
-
-  GPU_TYPE_UNSIGNED_BYTE* =0x1401.uint32
-
+  GPU_TYPE_UNSIGNED_BYTE* = 0x1401.uint32
   GPU_TYPE_SHORT* = 0x1402.uint32
-
   GPU_TYPE_UNSIGNED_SHORT* = 0x1403.uint32
-
-  GPU_TYPE_INT* = 0x1404
-
-  GPU_TYPE_UNSIGNED_INT* =0x1405.uint32
-
+  GPU_TYPE_INT* = 0x1404.uint32
+  GPU_TYPE_UNSIGNED_INT* = 0x1405.uint32
   GPU_TYPE_FLOAT* = 0x1406.uint32 
-
   GPU_TYPE_DOUBLE* = 0x140A.uint32
 
 ## ! \ingroup ShaderInterface
@@ -472,7 +462,7 @@ type
     GPU_VERTEX_SHADER = 0, GPU_FRAGMENT_SHADER = 1, GPU_GEOMETRY_SHADER = 2
 
 const
-  GPU_PIXEL_SHADER = GPU_FRAGMENT_SHADER
+  GPU_PIXEL_SHADER* = GPU_FRAGMENT_SHADER
 
 ## ! \ingroup ShaderInterface
 ##  Type enumeration for the shader language used by the renderer.
@@ -553,7 +543,7 @@ type
     GPU_DEBUG_LEVEL_3 = 3
 
 const
-  GPU_DEBUG_LEVEL_MAX = GPU_DEBUG_LEVEL_3
+  GPU_DEBUG_LEVEL_MAX* = GPU_DEBUG_LEVEL_3
 
 ## ! \ingroup Logging
 ##  Type enumeration for logging levels.
@@ -600,6 +590,9 @@ type
     color*: SDL_Color
     viewport*: GPU_Rect        ## ! Perspective and object viewing transforms.
     camera*: GPU_Camera
+    use_depth_test*: GPU_bool
+    use_depth_write*: GPU_bool
+    depth_function*: GPU_ComparisonEnum
     use_camera*: GPU_bool      ## ! Renderer context data.  NULL if the target does not represent a window or rendering context.
     context*: ptr GPU_Context
     refcount*: cint
@@ -996,7 +989,7 @@ proc GPU_SetViewport*(target: ptr GPU_Target; viewport: GPU_Rect) {.cdecl,
 
 proc GPU_UnsetViewport*(target: ptr GPU_Target) {.cdecl,
     importc: "GPU_UnsetViewport", dynlib: libName.}
-## ! \return A GPU_Camera with position (0, 0, -10), angle of 0, and zoom of 1.
+## ! \return A GPU_Camera with position (0, 0, 0), angle of 0, zoom of 1, and near/far clipping planes of -100 and 100.
 
 proc GPU_GetDefaultCamera*(): GPU_Camera {.cdecl, importc: "GPU_GetDefaultCamera",
                                         dynlib: libName.}
@@ -1019,6 +1012,24 @@ proc GPU_EnableCamera*(target: ptr GPU_Target; use_camera: GPU_bool) {.cdecl,
 
 proc GPU_IsCameraEnabled*(target: ptr GPU_Target): GPU_bool {.cdecl,
     importc: "GPU_IsCameraEnabled", dynlib: libName.}
+## ! Attach a new depth buffer to the given target so that it can use depth testing.  Context targets automatically have a depth buffer already.
+##  If successful, also enables depth testing for this target.
+
+proc GPU_AddDepthBuffer*(target: ptr GPU_Target): GPU_bool {.cdecl,
+    importc: "GPU_AddDepthBuffer", dynlib: libName.}
+## ! Enables or disables the depth test, which will skip drawing pixels/fragments behind other fragments.  Disabled by default.
+##  This has implications for alpha blending, where compositing might not work correctly depending on render order.
+
+proc GPU_SetDepthTest*(target: ptr GPU_Target; enable: GPU_bool) {.cdecl,
+    importc: "GPU_SetDepthTest", dynlib: libName.}
+## ! Enables or disables writing the depth (effective view z-coordinate) of new pixels to the depth buffer.  Enabled by default, but you must call GPU_SetDepthTest() to use it.
+
+proc GPU_SetDepthWrite*(target: ptr GPU_Target; enable: GPU_bool) {.cdecl,
+    importc: "GPU_SetDepthWrite", dynlib: libName.}
+## ! Sets the operation to perform when depth testing.
+
+proc GPU_SetDepthFunction*(target: ptr GPU_Target; compare_operation: GPU_ComparisonEnum) {.cdecl,
+    importc: "GPU_SetDepthFunction", dynlib: libName.}
 ## ! \return The RGBA color of a pixel.
 
 proc GPU_GetPixel*(target: ptr GPU_Target; x: int16; y: int16): SDL_Color {.cdecl,
@@ -1115,7 +1126,7 @@ proc GPU_CreateImage*(w: uint16; h: uint16; format: GPU_FormatEnum): ptr GPU_Ima
     cdecl, importc: "GPU_CreateImage", dynlib: libName.}
 ## ! Create a new image that uses the given native texture handle as the image texture.
 
-proc GPU_CreateImageUsingTexture*(handle: uint32; take_ownership: GPU_bool): ptr GPU_Image {.
+proc GPU_CreateImageUsingTexture*(handle: GPU_TextureHandle; take_ownership: GPU_bool): ptr GPU_Image {.
     cdecl, importc: "GPU_CreateImageUsingTexture", dynlib: libName.}
 ## ! Load image from an image file that is supported by this renderer.  Don't forget to GPU_FreeImage() it.
 
@@ -1245,6 +1256,11 @@ proc GPU_SetSnapMode*(image: ptr GPU_Image; mode: GPU_SnapEnum) {.cdecl,
 proc GPU_SetWrapMode*(image: ptr GPU_Image; wrap_mode_x: GPU_WrapEnum;
                      wrap_mode_y: GPU_WrapEnum) {.cdecl,
     importc: "GPU_SetWrapMode", dynlib: libName.}
+## ! Returns the backend-specific texture handle associated with the given image.  Note that SDL_gpu will be unaware of changes made to the texture.
+
+proc GPU_GetTextureHandle*(image: ptr GPU_Image): GPU_TextureHandle {.cdecl,
+    importc: "GPU_GetTextureHandle", dynlib: libName.}
+
 ##  End of ImageControls
 ## ! @}
 ##  Surface / Image / Target conversions
@@ -1342,8 +1358,8 @@ proc GPU_MatrixRotate*(result: ptr cfloat; degrees: cfloat; x: cfloat; y: cfloat
 ##  \see GPU_MultiplyAndAssign
 ## 
 
-proc GPU_Multiply4x4*(result: ptr cfloat; A: ptr cfloat; B: ptr cfloat) {.cdecl,
-    importc: "GPU_Multiply4x4", dynlib: libName.}
+proc GPU_MatrixMultiply*(result: ptr cfloat; A: ptr cfloat; B: ptr cfloat) {.cdecl,
+    importc: "GPU_MatrixMultiply", dynlib: libName.}
 ## ! Multiplies matrices 'result' and B and stores the result in the given 'result' matrix (result = result * B).
 
 proc GPU_MultiplyAndAssign*(result: ptr cfloat; B: ptr cfloat) {.cdecl,
@@ -1370,6 +1386,11 @@ proc GPU_GetProjection*(): ptr cfloat {.cdecl, importc: "GPU_GetProjection",
 proc GPU_GetModelViewProjection*(result: ptr cfloat) {.cdecl,
     importc: "GPU_GetModelViewProjection", dynlib: libName.}
 ##  Matrix stack manipulators
+
+## ! Allocate new matrices for the given stack.
+
+proc GPU_InitMatrixStack* (stack: ptr GPU_MatrixStack) {.cdecl,
+    importc: "GPU_InitMatrixStack", dynlib: libName.}
 ## ! Changes matrix mode to either GPU_PROJECTION or GPU_MODELVIEW.  Further matrix stack operations manipulate that particular stack.
 
 proc GPU_MatrixMode*(matrix_mode: cint) {.cdecl, importc: "GPU_MatrixMode",
@@ -1383,6 +1404,9 @@ proc GPU_PopMatrix*() {.cdecl, importc: "GPU_PopMatrix", dynlib: libName.}
 ## ! Fills current matrix with the identity matrix.
 
 proc GPU_LoadIdentity*() {.cdecl, importc: "GPU_LoadIdentity", dynlib: libName.}
+## ! Copies a given matrix to be the current matrix.
+
+proc GPU_LoadMatrix*(matrix4x4: ptr cfloat) {.cdecl, importc: "GPU_LoadMatrix", dynlib: libName.}
 ## ! Multiplies an orthographic projection matrix into the current matrix.
 
 proc GPU_Ortho*(left: cfloat; right: cfloat; bottom: cfloat; top: cfloat; near: cfloat;
@@ -1783,6 +1807,16 @@ proc GPU_RectangleRoundFilled2*(target: ptr GPU_Target; rect: GPU_Rect;
 proc GPU_Polygon*(target: ptr GPU_Target; num_vertices: cuint; vertices: ptr cfloat;
                  color: SDL_Color) {.cdecl, importc: "GPU_Polygon",
                                    dynlib: libName.}
+## ! Renders a colored sequence of line segments.
+##  \param target The destination render target
+##  \param num_vertices Number of vertices (x and y pairs)
+##  \param vertices An array of vertex positions stored as interlaced x and y coords, e.g. {x1, y1, x2, y2, ...}
+##  \param color The color of the shape to render
+##  \param close_loop Make a closed polygon by drawing a line at the end back to the start point
+##
+
+proc GPU_Polyline*(target: ptr GPU_Target; num_vertices: cuint; vertices: ptr cfloat; color: SDL_Color; close_loop: GPU_bool) {.cdecl,
+    importc: "GPU_Polyline", dynlib: libName.}
 ## ! Renders a colored filled polygon.  The vertices are expected to define a convex polygon.
 ##  \param target The destination render target
 ##  \param num_vertices Number of vertices (x and y pairs)
