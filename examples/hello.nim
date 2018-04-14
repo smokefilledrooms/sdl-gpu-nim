@@ -6,9 +6,6 @@ let screen = sdlgpu.init(640, 360, GPU_DEFAULT_INIT_FLAGS)
 var running = true
 var e = defaultEvent
 
-type MyStruct* = object
-  foo*: bool
-
 while running:
   
   while pollEvent(e):
